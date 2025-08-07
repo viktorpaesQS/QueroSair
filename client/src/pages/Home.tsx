@@ -1,0 +1,384 @@
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useToast } from '@/hooks/use-toast';
+import { isUnauthorizedError } from '@/lib/authUtils';
+import { apiRequest } from '@/lib/queryClient';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { QRScanner } from '@/components/QRScanner';
+import { QRCodeDisplay } from '@/components/QRCodeDisplay';
+import { 
+  Car, 
+  QrCode, 
+  Bell, 
+  Settings, 
+  Home as HomeIcon, 
+  TriangleAlert,
+  Camera,
+  Shield,
+  Check,
+  User
+} from 'lucide-react';
+import { Link } from 'wouter';
+
+export default function Home() {
+  const { user } = useAuth();
+  const { lastMessage } = useWebSocket();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [incomingRequest, setIncomingRequest] = useState<any>(null);
+
+  // Fetch user's vehicle
+  const { data: vehicle, isLoading: vehicleLoading } = useQuery({
+    queryKey: ['/api/vehicles/my'],
+    retry: false,
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Sessão expirada",
+          description: "A fazer login novamente...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+      }
+    }
+  });
+
+  // Fetch active parking session
+  const { data: activeSession } = useQuery({
+    queryKey: ['/api/parking-sessions/active'],
+    enabled: !!vehicle,
+  });
+
+  // Handle WebSocket messages
+  useEffect(() => {
+    if (lastMessage) {
+      if (lastMessage.type === 'EXIT_REQUEST') {
+        setIncomingRequest(lastMessage.data);
+        toast({
+          title: "Solicitação de Saída",
+          description: "Alguém precisa que mova o seu carro",
+          variant: "default",
+        });
+      }
+    }
+  }, [lastMessage, toast]);
+
+  // Create parking session mutation
+  const createSessionMutation = useMutation({
+    mutationFn: async (blockingVehicleId: string) => {
+      const response = await apiRequest('POST', '/api/parking-sessions', {
+        blockingVehicleId
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/parking-sessions/active'] });
+      toast({
+        title: "Sessão criada",
+        description: "Registou-se como bloqueado por este veículo",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Sessão expirada",
+          description: "A fazer login novamente...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar a sessão",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Exit request mutation
+  const exitRequestMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/exit-requests', {});
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowExitModal(false);
+      toast({
+        title: "Notificação Enviada!",
+        description: "O condutor será notificado em breve.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Sessão expirada",
+          description: "A fazer login novamente...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Erro",
+        description: "Não foi possível enviar a notificação",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle QR scan
+  const handleQRScan = async (qrCode: string) => {
+    setIsQRScannerOpen(false);
+    
+    try {
+      // Get vehicle info from QR code
+      const response = await apiRequest('GET', `/api/vehicles/qr/${encodeURIComponent(qrCode)}`);
+      const scannedVehicle = await response.json();
+      
+      // Create parking session
+      createSessionMutation.mutate(scannedVehicle.id);
+    } catch (error) {
+      toast({
+        title: "Código QR inválido",
+        description: "Não foi possível encontrar este veículo",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle exit request response
+  const respondToRequest = async (response: string) => {
+    if (incomingRequest) {
+      try {
+        await apiRequest('PATCH', `/api/exit-requests/${incomingRequest.requestId}/respond`, {
+          response
+        });
+        setIncomingRequest(null);
+        toast({
+          title: "Resposta enviada",
+          description: response === 'moving' ? "Informou que vai mover o carro" : "Pediu mais 5 minutos",
+        });
+      } catch (error) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível enviar a resposta",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  if (vehicleLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-traffic-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">A carregar...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!vehicle) {
+    return <Link href="/vehicle-registration">Registar Veículo</Link>;
+  }
+
+  return (
+    <div className="max-w-md mx-auto bg-white min-h-screen relative overflow-hidden">
+      {/* Header */}
+      <header className="bg-traffic-yellow text-traffic-black px-4 py-4 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-traffic-black rounded-full flex items-center justify-center">
+              <Car className="text-traffic-yellow text-lg" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">QUERO SAIR</h1>
+              <p className="text-sm opacity-80">Estacionamento Inteligente</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => window.location.href = '/api/logout'}
+            variant="ghost"
+            size="icon"
+            className="hover:bg-black/10"
+          >
+            <User className="text-2xl" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Status Card */}
+      <div className="p-4">
+        <Card className="border-2 border-gray-100 shadow-lg">
+          <CardContent className="p-6">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-success-green rounded-full flex items-center justify-center mx-auto mb-3">
+                <Check className="text-white text-2xl" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800">Veículo Registado</h2>
+              <p className="text-gray-600 mt-1">{vehicle.plate}</p>
+            </div>
+            
+            {/* QR Code Display */}
+            <QRCodeDisplay qrCode={vehicle.qrCode} vehiclePlate={vehicle.plate} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex-1 px-4 pb-24">
+        <div className="space-y-4">
+          {/* Quero Sair Button */}
+          <Button
+            onClick={() => setShowExitModal(true)}
+            disabled={!activeSession || exitRequestMutation.isPending}
+            className="w-full bg-warning-orange text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:bg-orange-600 transition-all transform active:scale-95"
+          >
+            <TriangleAlert className="mr-3" />
+            QUERO SAIR
+          </Button>
+
+          {/* Scan QR Button */}
+          <Button
+            onClick={() => setIsQRScannerOpen(true)}
+            variant="outline"
+            className="w-full bg-traffic-black text-traffic-yellow py-4 rounded-xl font-semibold text-lg border-2 border-traffic-yellow hover:bg-gray-800 transition-all"
+          >
+            <Camera className="mr-3" />
+            Digitalizar QR Code
+          </Button>
+
+          {/* Status Info */}
+          {activeSession ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <p className="text-blue-800 font-medium">Está registado como bloqueado</p>
+              <p className="text-blue-600 text-sm">Pode usar o botão "QUERO SAIR" quando necessário</p>
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+              <p className="text-gray-700">Digitalize um QR code se estiver bloqueado</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
+        <div className="flex justify-around">
+          <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-traffic-yellow">
+            <HomeIcon className="text-xl mb-1" />
+            <span className="text-xs font-medium">Início</span>
+          </Button>
+          <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-gray-400">
+            <QrCode className="text-xl mb-1" />
+            <span className="text-xs">QR Code</span>
+          </Button>
+          <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-gray-400">
+            <Bell className="text-xl mb-1" />
+            <span className="text-xs">Notificações</span>
+          </Button>
+          <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-gray-400">
+            <Settings className="text-xl mb-1" />
+            <span className="text-xs">Definições</span>
+          </Button>
+        </div>
+      </nav>
+
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScan={handleQRScan}
+      />
+
+      {/* Exit Request Modal */}
+      {showExitModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-sm">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-warning-orange rounded-full flex items-center justify-center mx-auto mb-4">
+                <TriangleAlert className="text-white text-2xl" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">Solicitar Saída</h3>
+              <p className="text-gray-600 mb-6">Quer notificar o condutor que está à sua frente?</p>
+              
+              <div className="space-y-3">
+                <Button
+                  onClick={() => exitRequestMutation.mutate()}
+                  disabled={exitRequestMutation.isPending}
+                  className="w-full bg-warning-orange text-white py-3 rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                >
+                  {exitRequestMutation.isPending ? 'A enviar...' : 'Sim, Notificar'}
+                </Button>
+                <Button
+                  onClick={() => setShowExitModal(false)}
+                  variant="outline"
+                  className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Incoming Notification */}
+      {incomingRequest && (
+        <div className="fixed top-4 left-4 right-4 z-50">
+          <Card className="border-l-4 border-warning-orange shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-warning-orange rounded-full flex items-center justify-center mr-3">
+                    <Car className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">Solicitação de Saída</p>
+                    <p className="text-sm text-gray-600">Alguém quer sair e precisa que mova o carro</p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setIncomingRequest(null)}
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </Button>
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => respondToRequest('moving')}
+                  className="flex-1 bg-warning-orange text-white py-2 rounded-lg font-medium text-sm"
+                >
+                  Vou Mover
+                </Button>
+                <Button
+                  onClick={() => respondToRequest('wait_5min')}
+                  variant="outline"
+                  className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium text-sm"
+                >
+                  5 min
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
