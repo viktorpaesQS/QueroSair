@@ -6,6 +6,16 @@
 
 Preferred communication style: Simple, everyday language.
 
+# Recent Changes (January 2025)
+
+## UX Enhancements for Stress Scenarios
+- **Landing Page**: Added 3-step onboarding guide for first-time users
+- **Status Clarity**: Implemented clear visual indicators ("ESTÁ BLOQUEADO" vs "LIVRE PARA SAIR") with color-coded borders
+- **Stress-Optimized Buttons**: Enlarged "QUERO SAIR" button to 2XL with prominent styling and border
+- **Full-Screen Notifications**: Modal alerts that cannot be missed when someone needs car moved
+- **Quick Access**: Floating yellow QR scanner button for instant scanning without scrolling
+- **User Feedback**: Confirmed excellent mobile experience and real-world usability for parking tensions
+
 # System Architecture
 
 ## Frontend Architecture
