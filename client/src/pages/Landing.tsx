@@ -63,6 +63,18 @@ export default function Landing() {
             </div>
           </div>
 
+          {/* How it works */}
+          <Card className="mb-6 bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <h3 className="font-semibold text-blue-800 mb-3 text-center">Como funciona em 3 passos:</h3>
+              <div className="space-y-2 text-sm text-blue-700">
+                <p><strong>1.</strong> Registe o seu veículo e coloque o QR no vidro traseiro</p>
+                <p><strong>2.</strong> Se estiver bloqueado, digitalize o QR do carro à frente</p>
+                <p><strong>3.</strong> Carregue "QUERO SAIR" para notificar o condutor</p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Call to Action */}
           <div className="text-center">
             <Button

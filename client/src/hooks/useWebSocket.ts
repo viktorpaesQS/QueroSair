@@ -24,10 +24,12 @@ export function useWebSocket() {
     ws.onopen = () => {
       setIsConnected(true);
       // Authenticate the connection
-      ws.send(JSON.stringify({
-        type: 'AUTH',
-        userId: user.id
-      }));
+      if (user && 'id' in user) {
+        ws.send(JSON.stringify({
+          type: 'AUTH',
+          userId: user.id
+        }));
+      }
     };
 
     ws.onmessage = (event) => {

@@ -95,12 +95,12 @@ export function QRScanner({ isOpen, onClose, onScan }: QRScannerProps) {
   const toggleFlash = async () => {
     if (streamRef.current) {
       const track = streamRef.current.getVideoTracks()[0];
-      const capabilities = track.getCapabilities();
+      const capabilities = track.getCapabilities() as any;
       
       if (capabilities.torch) {
         try {
           await track.applyConstraints({
-            advanced: [{ torch: !isFlashOn }]
+            advanced: [{ torch: !isFlashOn } as any]
           });
           setIsFlashOn(!isFlashOn);
         } catch (error) {

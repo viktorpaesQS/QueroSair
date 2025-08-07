@@ -134,14 +134,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const exitRequest = await storage.createExitRequest(requestData);
       
       // Notify blocking vehicle via WebSocket
-      broadcastToUser(activeSession.blockingVehicleId, {
-        type: 'EXIT_REQUEST',
-        data: {
-          requestId: exitRequest.id,
-          sessionId: activeSession.id,
-          blockedVehicle: userVehicle,
-        }
-      });
+      if (activeSession.blockingVehicleId) {
+        broadcastToUser(activeSession.blockingVehicleId, {
+          type: 'EXIT_REQUEST',
+          data: {
+            requestId: exitRequest.id,
+            sessionId: activeSession.id,
+            blockedVehicle: userVehicle,
+          }
+        });
+      }
 
       res.json(exitRequest);
     } catch (error) {
@@ -183,22 +185,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     ws.on('close', () => {
       // Remove connection from map
-      for (const [userId, connection] of userConnections.entries()) {
+      userConnections.forEach((connection, userId) => {
         if (connection === ws) {
           userConnections.delete(userId);
-          break;
         }
-      }
+      });
     });
   });
 
   function broadcastToUser(vehicleId: string, message: any) {
     // Find the user connection by vehicle ID (this would need to be enhanced)
-    for (const [userId, ws] of userConnections.entries()) {
+    userConnections.forEach((ws, userId) => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(message));
       }
-    }
+    });
   }
 
   return httpServer;

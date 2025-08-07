@@ -33,22 +33,24 @@ export default function Home() {
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
 
   // Fetch user's vehicle
-  const { data: vehicle, isLoading: vehicleLoading } = useQuery({
+  const { data: vehicle, isLoading: vehicleLoading, error: vehicleError } = useQuery({
     queryKey: ['/api/vehicles/my'],
     retry: false,
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Sessão expirada",
-          description: "A fazer login novamente...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-      }
-    }
   });
+
+  // Handle vehicle query error
+  useEffect(() => {
+    if (vehicleError && isUnauthorizedError(vehicleError as Error)) {
+      toast({
+        title: "Sessão expirada",
+        description: "A fazer login novamente...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+    }
+  }, [vehicleError, toast]);
 
   // Fetch active parking session
   const { data: activeSession } = useQuery({
@@ -229,11 +231,11 @@ export default function Home() {
                 <Check className="text-white text-2xl" />
               </div>
               <h2 className="text-xl font-semibold text-gray-800">Veículo Registado</h2>
-              <p className="text-gray-600 mt-1">{vehicle.plate}</p>
+              <p className="text-gray-600 mt-1">{vehicle?.plate}</p>
             </div>
             
             {/* QR Code Display */}
-            <QRCodeDisplay qrCode={vehicle.qrCode} vehiclePlate={vehicle.plate} />
+            {vehicle && <QRCodeDisplay qrCode={vehicle.qrCode} vehiclePlate={vehicle.plate} />}
           </CardContent>
         </Card>
       </div>
@@ -242,14 +244,21 @@ export default function Home() {
       <div className="flex-1 px-4 pb-24">
         <div className="space-y-4">
           {/* Quero Sair Button */}
-          <Button
-            onClick={() => setShowExitModal(true)}
-            disabled={!activeSession || exitRequestMutation.isPending}
-            className="w-full bg-warning-orange text-white py-6 rounded-xl font-bold text-xl shadow-lg hover:bg-orange-600 transition-all transform active:scale-95"
-          >
-            <TriangleAlert className="mr-3" />
-            QUERO SAIR
-          </Button>
+          {!activeSession ? (
+            <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
+              <p className="text-gray-600 font-medium mb-2">Para usar "QUERO SAIR":</p>
+              <p className="text-gray-500 text-sm">Primeiro digitalize o QR do carro que o está a bloquear</p>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setShowExitModal(true)}
+              disabled={exitRequestMutation.isPending}
+              className="w-full bg-warning-orange text-white py-8 rounded-xl font-bold text-2xl shadow-lg hover:bg-orange-600 transition-all transform active:scale-95 border-4 border-orange-300"
+            >
+              <TriangleAlert className="mr-3" size={28} />
+              QUERO SAIR
+            </Button>
+          )}
 
           {/* Scan QR Button */}
           <Button
@@ -263,17 +272,32 @@ export default function Home() {
 
           {/* Status Info */}
           {activeSession ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-              <p className="text-blue-800 font-medium">Está registado como bloqueado</p>
-              <p className="text-blue-600 text-sm">Pode usar o botão "QUERO SAIR" quando necessário</p>
+            <div className="bg-orange-50 border-2 border-warning-orange rounded-lg p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <TriangleAlert className="text-warning-orange mr-2" size={20} />
+                <p className="text-orange-800 font-bold">ESTÁ BLOQUEADO</p>
+              </div>
+              <p className="text-orange-700 text-sm">Use "QUERO SAIR" para notificar quando precisar sair</p>
             </div>
           ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-              <p className="text-gray-700">Digitalize um QR code se estiver bloqueado</p>
+            <div className="bg-green-50 border-2 border-success-green rounded-lg p-4 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Shield className="text-success-green mr-2" size={20} />
+                <p className="text-green-800 font-bold">LIVRE PARA SAIR</p>
+              </div>
+              <p className="text-green-700 text-sm">Digitalize QR se alguém o estiver a bloquear</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Floating Quick Scan Button */}
+      <Button
+        onClick={() => setIsQRScannerOpen(true)}
+        className="fixed bottom-20 right-4 w-16 h-16 bg-traffic-yellow text-traffic-black rounded-full shadow-2xl hover:bg-yellow-400 transition-all transform hover:scale-110 z-40"
+      >
+        <QrCode size={24} />
+      </Button>
 
       {/* Bottom Navigation */}
       <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
@@ -282,9 +306,13 @@ export default function Home() {
             <HomeIcon className="text-xl mb-1" />
             <span className="text-xs font-medium">Início</span>
           </Button>
-          <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-gray-400">
+          <Button 
+            variant="ghost" 
+            className="flex flex-col items-center py-2 px-4 text-gray-400"
+            onClick={() => setIsQRScannerOpen(true)}
+          >
             <QrCode className="text-xl mb-1" />
-            <span className="text-xs">QR Code</span>
+            <span className="text-xs">Digitalizar</span>
           </Button>
           <Button variant="ghost" className="flex flex-col items-center py-2 px-4 text-gray-400">
             <Bell className="text-xl mb-1" />
@@ -336,43 +364,37 @@ export default function Home() {
         </div>
       )}
 
-      {/* Incoming Notification */}
+      {/* Incoming Notification - Enhanced for stress scenarios */}
       {incomingRequest && (
-        <div className="fixed top-4 left-4 right-4 z-50">
-          <Card className="border-l-4 border-warning-orange shadow-xl">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-warning-orange rounded-full flex items-center justify-center mr-3">
-                    <Car className="text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800">Solicitação de Saída</p>
-                    <p className="text-sm text-gray-600">Alguém quer sair e precisa que mova o carro</p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setIncomingRequest(null)}
-                  variant="ghost"
-                  size="icon"
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  ×
-                </Button>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-sm border-4 border-warning-orange shadow-2xl animate-pulse">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-warning-orange rounded-full flex items-center justify-center mx-auto mb-4">
+                <Bell className="text-white text-2xl animate-bounce" />
               </div>
-              <div className="flex space-x-2">
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">ALGUÉM QUER SAIR!</h3>
+              <p className="text-gray-600 mb-6">Precisa que mova o seu carro</p>
+              
+              <div className="space-y-3">
                 <Button
                   onClick={() => respondToRequest('moving')}
-                  className="flex-1 bg-warning-orange text-white py-2 rounded-lg font-medium text-sm"
+                  className="w-full bg-warning-orange text-white py-4 rounded-lg font-bold text-lg hover:bg-orange-600 transition-colors"
                 >
-                  Vou Mover
+                  ✓ VOU MOVER AGORA
                 </Button>
                 <Button
                   onClick={() => respondToRequest('wait_5min')}
                   variant="outline"
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-medium text-sm"
+                  className="w-full bg-yellow-100 text-yellow-800 py-3 rounded-lg font-medium border-2 border-yellow-300 hover:bg-yellow-200"
                 >
-                  5 min
+                  ⏱️ Preciso de 5 minutos
+                </Button>
+                <Button
+                  onClick={() => setIncomingRequest(null)}
+                  variant="ghost"
+                  className="w-full text-gray-500 py-2 text-sm"
+                >
+                  Ignorar (não recomendado)
                 </Button>
               </div>
             </CardContent>
