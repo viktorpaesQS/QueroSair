@@ -3,6 +3,8 @@ import {
   vehicles,
   parkingSessions,
   exitRequests,
+  pushSubscriptions,
+  messages,
   type User,
   type UpsertUser,
   type Vehicle,
@@ -11,6 +13,10 @@ import {
   type InsertParkingSession,
   type ExitRequest,
   type InsertExitRequest,
+  type PushSubscription,
+  type InsertPushSubscription,
+  type Message,
+  type InsertMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -35,7 +41,17 @@ export interface IStorage {
   // Exit request operations
   createExitRequest(request: InsertExitRequest): Promise<ExitRequest>;
   getExitRequestsBySessionId(sessionId: string): Promise<ExitRequest[]>;
-  respondToExitRequest(requestId: string, response: string): Promise<void>;
+  respondToExitRequest(requestId: string, response: string, responseMessage?: string): Promise<void>;
+  
+  // Push notification operations
+  savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription>;
+  getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]>;
+  deletePushSubscription(userId: string, endpoint: string): Promise<void>;
+  
+  // Message operations
+  createMessage(message: InsertMessage): Promise<Message>;
+  getMessagesByExitRequestId(exitRequestId: string): Promise<Message[]>;
+  markMessageAsRead(messageId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -142,15 +158,73 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(exitRequests.requestedAt));
   }
 
-  async respondToExitRequest(requestId: string, response: string): Promise<void> {
+  async respondToExitRequest(requestId: string, response: string, responseMessage?: string): Promise<void> {
     await db
       .update(exitRequests)
       .set({
         response,
+        responseMessage,
         respondedAt: new Date(),
         isResolved: true,
       })
       .where(eq(exitRequests.id, requestId));
+  }
+
+  // Push notification operations
+  async savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription> {
+    // Delete existing subscription for this user and endpoint if exists
+    await db
+      .delete(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.userId, subscription.userId),
+        eq(pushSubscriptions.endpoint, subscription.endpoint)
+      ));
+
+    const [newSubscription] = await db
+      .insert(pushSubscriptions)
+      .values(subscription)
+      .returning();
+    return newSubscription;
+  }
+
+  async getPushSubscriptionsByUserId(userId: string): Promise<PushSubscription[]> {
+    return db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async deletePushSubscription(userId: string, endpoint: string): Promise<void> {
+    await db
+      .delete(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.endpoint, endpoint)
+      ));
+  }
+
+  // Message operations
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await db
+      .insert(messages)
+      .values(message)
+      .returning();
+    return newMessage;
+  }
+
+  async getMessagesByExitRequestId(exitRequestId: string): Promise<Message[]> {
+    return db
+      .select()
+      .from(messages)
+      .where(eq(messages.exitRequestId, exitRequestId))
+      .orderBy(messages.timestamp);
+  }
+
+  async markMessageAsRead(messageId: string): Promise<void> {
+    await db
+      .update(messages)
+      .set({ read: true })
+      .where(eq(messages.id, messageId));
   }
 }
 

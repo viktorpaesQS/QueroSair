@@ -3,7 +3,15 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertVehicleSchema, insertParkingSessionSchema, insertExitRequestSchema } from "@shared/schema";
+import { insertVehicleSchema, insertParkingSessionSchema, insertExitRequestSchema, insertPushSubscriptionSchema, insertMessageSchema } from "@shared/schema";
+import webpush from 'web-push';
+
+// Configure web push (in production, these should come from environment)
+webpush.setVapidDetails(
+  'mailto:contact@querosair.app',
+  'BMi4---c8fDLaxxMrJOEy4-S8i-xf5GQGA3LgYMBBxs7VMoCgalBFd0PEezzo6rHv81TKBvOtuGIoQQ4W_WdgpI',
+  'qlyHpwzB-Te30Ge2_JnnEkMAha69_gjnHTgy_NKHvJU'
+);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -155,13 +163,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/exit-requests/:id/respond', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { response } = req.body;
+      const { response, responseMessage } = req.body;
       
-      await storage.respondToExitRequest(id, response);
+      await storage.respondToExitRequest(id, response, responseMessage);
       res.json({ success: true });
     } catch (error) {
       console.error("Error responding to exit request:", error);
       res.status(500).json({ message: "Failed to respond to exit request" });
+    }
+  });
+
+  // Push notification routes
+  app.post('/api/push/subscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscriptionData = insertPushSubscriptionSchema.parse({
+        ...req.body,
+        userId,
+      });
+      
+      const subscription = await storage.savePushSubscription(subscriptionData);
+      res.json({ success: true, subscription });
+    } catch (error) {
+      console.error("Error saving push subscription:", error);
+      res.status(500).json({ message: "Failed to save push subscription" });
+    }
+  });
+
+  app.post('/api/push/unsubscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint } = req.body;
+      
+      await storage.deletePushSubscription(userId, endpoint);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error unsubscribing from push:", error);
+      res.status(500).json({ message: "Failed to unsubscribe" });
+    }
+  });
+
+  // Message routes
+  app.post('/api/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const senderId = req.user.claims.sub;
+      const messageData = insertMessageSchema.parse({
+        ...req.body,
+        senderId,
+      });
+      
+      const message = await storage.createMessage(messageData);
+      
+      // Send push notification to receiver
+      try {
+        const subscriptions = await storage.getPushSubscriptionsByUserId(messageData.receiverId);
+        const pushPayload = JSON.stringify({
+          title: 'Nova Mensagem - Quero Sair',
+          body: messageData.content,
+          data: {
+            exitRequestId: messageData.exitRequestId,
+            senderId,
+          }
+        });
+
+        await Promise.all(
+          subscriptions.map(sub =>
+            webpush.sendNotification({
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth }
+            }, pushPayload)
+            .catch(err => console.error('Push notification error:', err))
+          )
+        );
+      } catch (pushError) {
+        console.error('Error sending push notification:', pushError);
+      }
+      
+      res.json(message);
+    } catch (error) {
+      console.error("Error creating message:", error);
+      res.status(500).json({ message: "Failed to create message" });
+    }
+  });
+
+  app.get('/api/messages/:exitRequestId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { exitRequestId } = req.params;
+      const messages = await storage.getMessagesByExitRequestId(exitRequestId);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
     }
   });
 

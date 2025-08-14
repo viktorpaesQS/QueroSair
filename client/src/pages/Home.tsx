@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useToast } from '@/hooks/use-toast';
 import { isUnauthorizedError } from '@/lib/authUtils';
 import { apiRequest } from '@/lib/queryClient';
@@ -9,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { QRScanner } from '@/components/QRScanner';
 import { QRCodeDisplay } from '@/components/QRCodeDisplay';
+import { MessageChat } from '@/components/MessageChat';
 import { 
   Car, 
   QrCode, 
@@ -19,7 +21,8 @@ import {
   Camera,
   Shield,
   Check,
-  User
+  User,
+  MessageCircle
 } from 'lucide-react';
 import { Link } from 'wouter';
 
@@ -27,10 +30,13 @@ export default function Home() {
   const { user } = useAuth();
   const { lastMessage } = useWebSocket();
   const { toast } = useToast();
+  const { isSupported: isPushSupported, isSubscribed: isPushSubscribed, subscribe: subscribeToPush } = usePushNotifications();
   const queryClient = useQueryClient();
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+  const [showMessageChat, setShowMessageChat] = useState(false);
+  const [currentChatRequest, setCurrentChatRequest] = useState<any>(null);
 
   // Fetch user's vehicle
   const { data: vehicle, isLoading: vehicleLoading, error: vehicleError } = useQuery({
@@ -57,6 +63,15 @@ export default function Home() {
     queryKey: ['/api/parking-sessions/active'],
     enabled: !!vehicle,
   });
+
+  // Auto-setup push notifications
+  useEffect(() => {
+    if (isPushSupported && !isPushSubscribed && user) {
+      subscribeToPush().catch(() => {
+        // Silent fail - push notifications are optional
+      });
+    }
+  }, [isPushSupported, isPushSubscribed, user, subscribeToPush]);
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -390,6 +405,17 @@ export default function Home() {
                   ⏱️ Preciso de 5 minutos
                 </Button>
                 <Button
+                  onClick={() => {
+                    setCurrentChatRequest(incomingRequest);
+                    setShowMessageChat(true);
+                  }}
+                  variant="outline"
+                  className="w-full bg-blue-50 text-blue-700 py-3 rounded-lg font-medium border-2 border-blue-300 hover:bg-blue-100"
+                >
+                  <MessageCircle className="mr-2" size={16} />
+                  Enviar Mensagem
+                </Button>
+                <Button
                   onClick={() => setIncomingRequest(null)}
                   variant="ghost"
                   className="w-full text-gray-500 py-2 text-sm"
@@ -400,6 +426,27 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* QR Scanner Modal */}
+      {isQRScannerOpen && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setIsQRScannerOpen(false)}
+        />
+      )}
+
+      {/* Message Chat Modal */}
+      {showMessageChat && currentChatRequest && (
+        <MessageChat
+          exitRequestId={currentChatRequest.requestId}
+          receiverId={currentChatRequest.blockedVehicle?.userId || ''}
+          receiverName="Condutor"
+          onClose={() => {
+            setShowMessageChat(false);
+            setCurrentChatRequest(null);
+          }}
+        />
       )}
     </div>
   );

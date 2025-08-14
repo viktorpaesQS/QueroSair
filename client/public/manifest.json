@@ -1,28 +1,50 @@
 {
-  "name": "Quero Sair - Estacionamento Inteligente",
+  "name": "Quero Sair",
   "short_name": "Quero Sair",
-  "description": "Solução silenciosa para conflitos de estacionamento em Lisboa",
+  "description": "App de comunicação para estacionamento em Lisboa",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFD700",
-  "theme_color": "#1A1A1A",
+  "background_color": "#000000",
+  "theme_color": "#FFD700",
   "orientation": "portrait",
+  "scope": "/",
+  "lang": "pt-PT",
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjRkZENzAwIiByeD0iMjQiLz4KPHN2ZyB4PSI0OCIgeT0iNDgiIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxQTFBMUEiIHN0cm9rZS13aWR0aD0iMiI+CjxwYXRoIGQ9Ik03IDE3aDEwbC0yLTZIOW0yIDBoMG0wIDBoNiIvPgo8Y2lyY2xlIGN4PSI3IiBjeT0iMTciIHI9IjIiLz4KPGJ3cmNsZSBjeD0iMTciIGN5PSIxNyIgcj0iMiIvPgo8L3N2Zz4KPC9zdmc+",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjRkZENzAwIiByeD0iNjQiLz4KPHN2ZyB4PSIxMjgiIHk9IjEyOCIgd2lkdGg9IjI1NiIgaGVpZ2h0PSIyNTYiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMUExQTFBIiBzdHJva2Utd2lkdGg9IjIiPgo8cGF0aCBkPSJNNyAxN2gxMGwtMi02SDltMiAwaDBtMCAwaDYiLz4KPGJ3cmNsZSBjeD0iNyIgY3k9IjE3IiByPSIyIi8+CjxjaXJjbGUgY3g9IjE3IiBjeT0iMTciIHI9IjIiLz4KPC9zdmc+Cjwvc3ZnPg==",
+      "src": "/icon-512x512.png", 
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["transportation", "utilities"],
-  "lang": "pt-PT",
-  "scope": "/",
-  "id": "quero-sair-pwa"
+  "shortcuts": [
+    {
+      "name": "Digitalizar QR",
+      "short_name": "Scan",
+      "description": "Digitalizar QR code de um veículo",
+      "url": "/?action=scan",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "categories": ["utilities", "social"],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ]
 }
