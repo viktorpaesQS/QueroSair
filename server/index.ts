@@ -7,11 +7,11 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// logging middleware
+// Logger simples para rotas da API
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let capturedJsonResponse: Record<string, any> | undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -26,8 +26,8 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+      if (logLine.length > 120) {
+        logLine = logLine.slice(0, 119) + "…";
       }
       log(logLine);
     }
@@ -37,25 +37,31 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // cria servidor HTTP ligado ao express
+  const server = createServer(app);
+
+  // registra rotas
   await registerRoutes(app);
 
+  // middleware de erro
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+
     res.status(status).json({ message });
-    throw err;
+    log(`❌ Erro: ${message}`);
   });
 
+  // Se for dev → Vite, se for produção → serve estático
   if (app.get("env") === "development") {
-    await setupVite(app, null);
+    await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
+  // porta para Railway / Vercel
   const port = parseInt(process.env.PORT || "5000", 10);
-  const server = createServer(app);
-
   server.listen(port, "0.0.0.0", () => {
-    log(`🚀 Server running on port ${port}`);
+    log(`🚀 Servindo em http://0.0.0.0:${port}`);
   });
 })();
