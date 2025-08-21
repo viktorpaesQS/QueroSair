@@ -1,12 +1,11 @@
 import { Express } from "express";
 
-export function registerRoutes(app: Express) {
-  // ping simples
+export async function registerRoutes(app: Express) {
+  // rota de teste
   app.get("/api/ping", (_req, res) => {
     res.json({ message: "pong 🏓" });
   });
 
-  // health check
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
