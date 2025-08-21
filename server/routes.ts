@@ -1,13 +1,15 @@
 import { Express } from "express";
 
-export async function registerRoutes(app: Express) {
-  // Rota de teste
+export function registerRoutes(app: Express) {
+  // ping simples
   app.get("/api/ping", (_req, res) => {
     res.json({ message: "pong 🏓" });
   });
 
-  // Aqui no futuro podes adicionar outras rotas
-  // ex: app.use("/api/users", usersRouter);
+  // health check
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
+  });
 
   return app;
 }
