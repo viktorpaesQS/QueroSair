@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.6.0",
-    "@replit/vite-plugin-runtime-error-modal": "^0.3.8",
     "connect-pg-simple": "^9.0.0",
     "crypto": "^1.0.1",
     "drizzle-orm": "^0.29.4",
